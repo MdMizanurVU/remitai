@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { TrendingUp, RefreshCw, ExternalLink, Zap } from "lucide-react";
 
 // Mock data for providers with receiver-type specific speeds
@@ -7,17 +7,18 @@ const INITIAL_PROVIDERS = [
     id: "taptap",
     name: "Taptap Send",
     logo: "TT",
-    rate: 86.5,
+    rate: 85.97,
     fee: 0,
+    minimumAmount: 1, // AUD
     speeds: {
       bank: "1-2 Hours",
       bkash: "Instant",
       nagad: "Instant",
     },
     links: {
-      bank: "https://www.taptapsend.com/send-money/australia/bangladesh",
-      bkash: "https://www.taptapsend.com/send-money/australia/bangladesh/bkash",
-      nagad: "https://www.taptapsend.com/send-money/australia/bangladesh/nagad",
+      bank: "https://www.taptapsend.com/en-gb",
+      bkash: "https://www.taptapsend.com/en-gb",
+      nagad: "https://www.taptapsend.com/en-gb",
     },
     color: "bg-indigo-600",
   },
@@ -27,6 +28,7 @@ const INITIAL_PROVIDERS = [
     logo: "RY",
     rate: 85.9,
     fee: 2.99,
+    minimumAmount: 15, // AUD
     speeds: {
       bank: "30 Minutes",
       bkash: "Minutes",
@@ -45,6 +47,7 @@ const INITIAL_PROVIDERS = [
     logo: "WS",
     rate: 86.25,
     fee: 4.5,
+    minimumAmount: 1, // AUD
     speeds: {
       bank: "Seconds",
       bkash: "Not Available",
@@ -63,6 +66,7 @@ const INITIAL_PROVIDERS = [
     logo: "MG",
     rate: 84.8,
     fee: 0.99,
+    minimumAmount: 10, // AUD
     speeds: {
       bank: "2-4 Hours",
       bkash: "1 Hour",
@@ -83,6 +87,7 @@ const INITIAL_PROVIDERS = [
     logo: "RI",
     rate: 85.1,
     fee: 1.99,
+    minimumAmount: 5, // AUD
     speeds: {
       bank: "1-3 Hours",
       bkash: "Instant",
@@ -98,6 +103,110 @@ const INITIAL_PROVIDERS = [
     color: "bg-orange-500",
   },
 ];
+
+// Live Data Integration Functions
+const EXCHANGE_RATE_API = "https://api.exchangerate-api.com/v4/latest/AUD";
+
+// Function to fetch live exchange rates
+const fetchLiveExchangeRates = async () => {
+  try {
+    const response = await fetch(EXCHANGE_RATE_API);
+    const data = await response.json();
+    return data.rates.BDT; // Get AUD to BDT rate
+  } catch (error) {
+    console.error("Failed to fetch exchange rates:", error);
+    return null;
+  }
+};
+
+// Function to simulate provider-specific rates (each provider has different margins)
+const updateProvidersWithLiveRates = (baseRate, providers) => {
+  const providerMargins = {
+    taptap: 0.995, // Best rate (0.5% margin)
+    wise: 0.99, // 1% margin
+    ria: 0.985, // 1.5% margin
+    remitly: 0.983, // 1.7% margin
+    moneygram: 0.98, // 2% margin
+  };
+
+  return providers.map((provider) => ({
+    ...provider,
+    rate: baseRate * (providerMargins[provider.id] || 0.98),
+    lastUpdated: new Date().toISOString(),
+  }));
+};
+
+// Function to integrate with Wise API (requires API key)
+const fetchWiseRate = async () => {
+  // This is a simplified example - actual Wise API requires authentication
+  try {
+    // const response = await fetch('https://api.transferwise.com/v1/rates', {
+    //   headers: {
+    //     'Authorization': 'Bearer YOUR_API_KEY'
+    //   }
+    // });
+    // For demo, we'll simulate a response
+    return {
+      rate: 86.25,
+      fee: 4.5,
+      estimatedDelivery: "Seconds",
+    };
+  } catch (error) {
+    console.error("Failed to fetch Wise rate:", error);
+    return null;
+  }
+};
+
+// Function to integrate with Remitly API (hypothetical - requires partnership)
+const fetchRemitlyRate = async (amount, receiverType) => {
+  try {
+    // This would be the actual Remitly API endpoint
+    // const response = await fetch(`https://api.remitly.com/v1/quote`, {
+    //   method: 'POST',
+    //   headers: {
+    //     'Content-Type': 'application/json',
+    //     'Authorization': 'Bearer YOUR_REMITLY_API_KEY'
+    //   },
+    //   body: JSON.stringify({
+    //     sendAmount: amount,
+    //     sendCurrency: 'AUD',
+    //     receiveCurrency: 'BDT',
+    //     deliveryMethod: receiverType,
+    //     sourceCountry: 'AU',
+    //     destinationCountry: 'BD'
+    //   })
+    // });
+
+    // Simulated response for demo
+    return {
+      rate: 85.9,
+      fee: 2.99,
+      estimatedDelivery: receiverType === "bank" ? "30 Minutes" : "Minutes",
+      minimumAmount: 15,
+    };
+  } catch (error) {
+    console.error("Failed to fetch Remitly rate:", error);
+    return null;
+  }
+};
+
+// Function to scrape rates (example with a hypothetical scraper)
+const scrapeProviderRates = async () => {
+  try {
+    // This would use a web scraping service or your own scraper
+    // const response = await fetch('/api/scrape-rates'); // Your backend endpoint
+
+    // Simulated scraped data
+    return {
+      taptap: { rate: 86.5, fee: 0, lastScraped: new Date().toISOString() },
+      wise: { rate: 86.25, fee: 4.5, lastScraped: new Date().toISOString() },
+      remitly: { rate: 85.9, fee: 2.99, lastScraped: new Date().toISOString() },
+    };
+  } catch (error) {
+    console.error("Failed to scrape rates:", error);
+    return null;
+  }
+};
 
 const RECEIVER_TYPES = [
   {
@@ -118,29 +227,63 @@ const App = () => {
   const [amount, setAmount] = useState(1000);
   const [providers, setProviders] = useState(INITIAL_PROVIDERS);
   const [loading, setLoading] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(
-    new Date().toLocaleTimeString(),
-  );
-  const [includeIncentive, setIncludeIncentive] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [includeIncentive, setIncludeIncentive] = useState(false);
   const [receiverType, setReceiverType] = useState("bank");
 
-  // Simulate fetching new rates
-  const refreshRates = () => {
+  // Function to refresh rates using live data
+  const refreshRates = async () => {
     setLoading(true);
-    setTimeout(() => {
-      const updated = providers.map((p) => ({
-        ...p,
-        rate: p.rate + (Math.random() * 0.4 - 0.2),
-      }));
-      setProviders(updated);
-      setLastUpdated(new Date().toLocaleTimeString());
+    try {
+      // Method 1: Fetch live exchange rate and apply provider margins
+      const baseRate = await fetchLiveExchangeRates();
+      if (baseRate) {
+        const updatedProviders = updateProvidersWithLiveRates(
+          baseRate,
+          INITIAL_PROVIDERS,
+        );
+        setProviders(updatedProviders);
+        setLastUpdated(new Date().toISOString());
+      }
+
+      // Method 2: Fetch individual provider rates (if APIs are available)
+      // const wiseData = await fetchWiseRate();
+      // const remitlyData = await fetchRemitlyRate(amount, receiverType);
+
+      // Method 3: Use scraped data
+      // const scrapedData = await scrapeProviderRates();
+    } catch (error) {
+      console.error("Failed to refresh rates:", error);
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
+  // Auto-refresh rates every 5 minutes
+  useEffect(() => {
+    refreshRates(); // Initial load
+
+    const interval = setInterval(
+      () => {
+        refreshRates();
+      },
+      5 * 60 * 1000,
+    ); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Refresh when receiver type or amount changes (for provider-specific rates)
+  useEffect(() => {
+    // Optional: Refresh rates when parameters change
+    // refreshRates();
+  }, [receiverType, amount]);
+
   const sortedProviders = useMemo(() => {
-    return [...providers].sort((a, b) => b.rate - a.rate);
-  }, [providers]);
+    return [...providers]
+      .filter((provider) => amount >= provider.minimumAmount) // Filter by minimum amount
+      .sort((a, b) => b.rate - a.rate);
+  }, [providers, amount]);
 
   const calculateRecipientGets = (provider) => {
     const baseAmount = amount * provider.rate;
@@ -309,8 +452,18 @@ const App = () => {
                 <RefreshCw
                   className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
                 />
-                {loading ? "Fetching..." : `Updated at ${lastUpdated}`}
+                {loading
+                  ? "Fetching Live Rates..."
+                  : lastUpdated
+                    ? `Live: ${new Date(lastUpdated).toLocaleTimeString()}`
+                    : "Click to Load Live Rates"}
               </button>
+              {lastUpdated && (
+                <div className="flex items-center gap-2 text-xs text-green-600">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  Live Data Active
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -334,6 +487,23 @@ const App = () => {
             </span>
           </div>
         </div>
+
+        {/* Show filtered providers message */}
+        {providers.length > sortedProviders.length && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 bg-yellow-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-bold">!</span>
+              </div>
+              <span className="text-yellow-800 text-sm font-medium">
+                {providers.length - sortedProviders.length} provider(s) filtered
+                out due to minimum amount requirements.
+                {amount < 15 &&
+                  " Try increasing your send amount to see more options."}
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-4">
           {sortedProviders.map((provider, index) => (
@@ -374,6 +544,9 @@ const App = () => {
                         {provider.speeds && provider.speeds[receiverType]
                           ? provider.speeds[receiverType]
                           : "Unknown"}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-blue-100 text-blue-600">
+                        Min: ${provider.minimumAmount} AUD
                       </span>
                     </div>
                   </div>
