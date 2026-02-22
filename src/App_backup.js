@@ -103,14 +103,17 @@ const RECEIVER_TYPES = [
   {
     value: "bank",
     label: "Bank Account",
+    icon: "🏛️",
   },
   {
     value: "bkash",
     label: "bKash",
+    icon: "bK",
   },
   {
     value: "nagad",
     label: "Nagad",
+    icon: "NG",
   },
 ];
 
@@ -234,7 +237,7 @@ const App = () => {
                   >
                     {RECEIVER_TYPES.map((type) => (
                       <option key={type.value} value={type.value}>
-                        {type.label}
+                        {type.icon} {type.label}
                       </option>
                     ))}
                   </select>
